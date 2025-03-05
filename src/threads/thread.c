@@ -11,8 +11,10 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "devices/timer.h" // para usar timer_ticks()
 #ifdef USERPROG
 #include "userprog/process.h"
+#include "thread.h"
 #endif
 
 /* Random value for struct thread's `magic' member.
@@ -22,15 +24,16 @@
 
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
-static struct list ready_list;
-
-/* List of processes in THREAD_BLOCKED state, that is, processes
-   that are not ready to run. */
-//static struct list blocked_list;
-
+   static struct list ready_list;
+   
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
-static struct list all_list;
+   static struct list all_list;
+   
+   
+/* lista de threads em estado THREAD_BLOCKED, threads
+  que chamaram timer_sleep (basicamente). */
+static struct list blocked_list;
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -74,6 +77,7 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
+static bool menor_tick(const struct list_elem *operando_1, const struct list_elem *operando_2, void *aux UNUSED);
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -95,7 +99,7 @@ thread_init (void)
 
   lock_init (&tid_lock);
   list_init (&ready_list);
- // list_init (&blocked_list);
+  list_init (&blocked_list);
   list_init (&all_list);
 
   /* Set up a thread structure for the running thread. */
@@ -142,6 +146,8 @@ thread_tick (void)
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
+
+  thread_reacordar(); // confere se alguma thread pode acordar
 }
 
 /* Prints thread statistics. */
@@ -220,9 +226,7 @@ thread_block (void)
 {
   ASSERT (!intr_context ());
   ASSERT (intr_get_level () == INTR_OFF);
-
   thread_current ()->status = THREAD_BLOCKED;
- // list_push_back(&blocked_list, &thread_current ()->elem);
   schedule ();
 }
 
@@ -243,7 +247,6 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  //list_remove(&t->elem);
   list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
   intr_set_level (old_level);
@@ -373,6 +376,54 @@ thread_get_load_avg (void)
 {
   /* Not yet implemented. */
   return 0;
+}
+
+/* vai ser chamado em timer_sleep e vai bloquear a thread e a colocar na lista de threads bloqueadas */
+void
+thread_dormir (int64_t ticks_extras)
+{
+  struct thread *cur = thread_current (); //thread atual, chamou timer_sleep
+
+  enum intr_level estado_interrupcao; // salva se as interrupcoes estao ligadas ou nao
+
+  ASSERT(cur->status == THREAD_RUNNING); // A thread que chamou tem que ser a atual, se n, ha algo errado
+  cur->tick_para_acordar = timer_ticks() + ticks_extras; // timer_ticks e o momento atual, logo, o momento para acordar vai ser agora, mais o tempo extra
+
+  estado_interrupcao = intr_disable(); //salva o estado que estava e para as interrupcoes porque vai inserir na lista de threads boqueadas e tambem vai bloquear a thread atual
+  
+  list_insert_ordered(&blocked_list, &cur->elem, menor_tick, NULL);
+  
+  thread_block();
+
+  intr_set_level(estado_interrupcao); // volta o estado que estava
+}
+
+/* Vai ser chamada a cada tratamento de interrupcao de relogio e vai verificar
+   se algum elemento na lista de threads bloqueadas esta pronto para acordar, ou
+   seja, se o tick atual ja e menor que o tick_para_acordar das threads na lista */
+void
+thread_reacordar (void)
+{
+  enum intr_level estado_interrupcao; // salva se as interrupcoes estao ligadas ou nao
+  
+  struct thread *thread_atual;
+  
+  struct list_elem *e = list_head (&blocked_list);
+  struct list_elem *d = e;
+  //o elemento d e necessario por a expressao e = list_next (e) ativa um panic no sistema pelo assert em list.c:253
+  while ( (e = list_next (d)) != list_end (&blocked_list)) // itera sobre a lista
+  {
+    thread_atual = list_entry (e, struct thread , elem); // pega a thread na lista pelo seu indice (e), o tipo que este no na lista e (thread), e o elemento da lista (elem)
+    
+    if (thread_atual->tick_para_acordar > timer_ticks())
+        break;
+    
+    estado_interrupcao = intr_disable(); //salva o estado que estava e para as interrupcoes porque vai inserir na lista de threads ready e tambem vai desbloquear a thread atual
+    list_remove(e);
+    thread_unblock (thread_atual);
+    intr_set_level(estado_interrupcao); // volta o estado que estava
+    e = d;
+  }
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
@@ -587,7 +638,19 @@ allocate_tid (void)
 
   return tid;
 }
-
+
+/* Usado para inserir em ordem na lista de blocked threads, (list_insert_ordered). 
+   Define para a funcao qual a sua lei de ordenacao, neste caso, menor tempo para acordar
+   possui maior prioridade na fila (padrao pego na teste de list.c)*/
+bool
+menor_tick (const struct list_elem *operando_1, const struct list_elem *operando_2, void *aux UNUSED)
+{
+  const struct thread *a = list_entry (operando_1, struct thread, elem);
+  const struct thread *b = list_entry (operando_2, struct thread, elem);
+
+  return a->tick_para_acordar < b->tick_para_acordar;
+}
+
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
