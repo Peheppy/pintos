@@ -97,7 +97,6 @@ timer_sleep (int64_t ticks)
   /* caso timer_elapsed (start) >= ticks, cond_wait(contar_tempo) */
 
   int64_t start = timer_ticks ();
-
   ASSERT (intr_get_level () == INTR_ON);
   while (timer_elapsed (start) < ticks) 
     thread_yield ();
