@@ -143,4 +143,4 @@ int thread_get_load_avg (void);
 void thread_dormir(int64_t ticks_extras); /* chamada por timer_sleep, e quem bloqueia a thread e a coloca na fila de threads bloqueadas */
 void thread_reacordar(void); /* esta dentro da funcao thread_tick, que e chamada a cada tick por timer.c no seu tratador de interrupcao por tempo. Basicamente, verifica, dentro da lista de threads bloqueadas, se alguma destas threads ja pode ser acordada, ou seja, se o tick atual ja e menor que o tick inicial + tick_extra*/
 
-#endif /* threads/thread.h */
+#endif /* threads/thread.h *///

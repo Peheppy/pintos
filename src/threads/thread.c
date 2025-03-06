@@ -77,7 +77,7 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
-static bool menor_tick(const struct list_elem *operando_1, const struct list_elem *operando_2, void *aux UNUSED);
+static bool menor_tick_ou_maior_prioridade(const struct list_elem *operando_1, const struct list_elem *operando_2, void *aux UNUSED);
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -383,7 +383,7 @@ void
 thread_dormir (int64_t ticks_extras)
 {
   struct thread *cur = thread_current (); //thread atual, chamou timer_sleep
-
+  
   enum intr_level estado_interrupcao; // salva se as interrupcoes estao ligadas ou nao
 
   ASSERT(cur->status == THREAD_RUNNING); // A thread que chamou tem que ser a atual, se n, ha algo errado
@@ -391,7 +391,8 @@ thread_dormir (int64_t ticks_extras)
 
   estado_interrupcao = intr_disable(); //salva o estado que estava e para as interrupcoes porque vai inserir na lista de threads boqueadas e tambem vai bloquear a thread atual
   
-  list_insert_ordered(&blocked_list, &cur->elem, menor_tick, NULL);
+  // prioridade e so para o alarm-priority
+  list_insert_ordered(&blocked_list, &cur->elem, menor_tick_ou_maior_prioridade, NULL); // insere na ordem de prioridade descendente
   
   thread_block();
 
@@ -415,6 +416,7 @@ thread_reacordar (void)
   {
     thread_atual = list_entry (e, struct thread , elem); // pega a thread na lista pelo seu indice (e), o tipo que este no na lista e (thread), e o elemento da lista (elem)
     
+    // como esta em crescente, uma vez que achou na lista de maior prioridade que nao deu o tempo, todas as proximas tambem nao vao poder ocorrer, logo pode somente sair do laco
     if (thread_atual->tick_para_acordar > timer_ticks())
         break;
     
@@ -642,13 +644,13 @@ allocate_tid (void)
 /* Usado para inserir em ordem na lista de blocked threads, (list_insert_ordered). 
    Define para a funcao qual a sua lei de ordenacao, neste caso, menor tempo para acordar
    possui maior prioridade na fila (padrao pego na teste de list.c)*/
-bool
-menor_tick (const struct list_elem *operando_1, const struct list_elem *operando_2, void *aux UNUSED)
+static bool
+menor_tick_ou_maior_prioridade(const struct list_elem *operando_1, const struct list_elem *operando_2, void *aux UNUSED)
 {
   const struct thread *a = list_entry (operando_1, struct thread, elem);
   const struct thread *b = list_entry (operando_2, struct thread, elem);
 
-  return a->tick_para_acordar < b->tick_para_acordar;
+  return (a->tick_para_acordar < b->tick_para_acordar) || (a->priority > b->priority);
 }
 
 /* Offset of `stack' member within `struct thread'.
