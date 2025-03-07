@@ -30,18 +30,6 @@ static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 static void real_time_delay (int64_t num, int32_t denom);
 
-/* struct args
-{
-    int64_t start;
-    int64_t ticks;
-    struct thread *caller;
-};
-
-static void contar(void *args_);
-
-static struct condition times_up;
-static struct lock lock; */
-
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
    and registers the corresponding interrupt. */
 void
@@ -49,8 +37,6 @@ timer_init (void)
 {
   pit_configure_channel (0, 2, TIMER_FREQ);
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
-  /* cond_init(&times_up);
-  lock_init(&lock); */
 }
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
@@ -106,6 +92,7 @@ timer_sleep (int64_t ticks)
   ASSERT (intr_get_level () == INTR_ON);
   thread_dormir(ticks);
   
+  /* codigo anterior */
   /* int64_t start = timer_ticks ();
   ASSERT (intr_get_level () == INTR_ON);
   while (timer_elapsed (start) < ticks) 
@@ -260,19 +247,3 @@ real_time_delay (int64_t num, int32_t denom)
   ASSERT (denom % 1000 == 0);
   busy_wait (loops_per_tick * num / 1000 * TIMER_FREQ / (denom / 1000)); 
 }
-
-/* void
-contar (void *args_)
-{
-  lock_acquire(&lock);
-  struct args *args = args_;
-  if (timer_elapsed (args->start) < args->ticks) 
-  {
-    thread_remove_from_ready_list(thread_current ());
-    thread_add_to_ready_list(args->caller);
-  }
-  else
-    cond_signal(&times_up, &lock);
-  lock_release(&lock);
-} 
- */

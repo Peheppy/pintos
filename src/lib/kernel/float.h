@@ -6,7 +6,7 @@ typedef int float_type;
 #define FLOAT_SHIFT_AMOUNT 15
 
 #define FLOAT_CONST(A) ((float_type)(A << FLOAT_SHIFT_AMOUNT))
-
+/* criado para transformar um numero em real, para utilizar outras funcoes de reais (usado em calculo de load_avg) */
 #define FLOAT_PARA_REAL(A) ((float_type)((A) * (1 << (FLOAT_SHIFT_AMOUNT - 1))))
 
 #define FLOAT_ADD(A,B) (A + B)
