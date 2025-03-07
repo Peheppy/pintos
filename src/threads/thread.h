@@ -3,6 +3,7 @@
 
 #include <debug.h>
 #include <list.h>
+#include <float.h>
 #include <stdint.h>
 
 /* States in a thread's life cycle. */
@@ -94,6 +95,9 @@ struct thread
     struct list_elem elem;              /* List element. */
 
     int64_t tick_para_acordar; /* Qualquer thread pode dormir, e, para acordar , se deve esperar segundos, os quais sao contados em ticks de clock. Logo, toda thread pode ter uma variavel que guarda esse tick para acordar*/
+    int nice; /* para mlfqs*/
+    int recent_cpu; /* para mlfqs*/
+
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -108,6 +112,7 @@ struct thread
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 extern bool thread_mlfqs;
+
 
 void thread_init (void);
 void thread_start (void);
@@ -143,4 +148,10 @@ int thread_get_load_avg (void);
 void thread_dormir(int64_t ticks_extras); /* chamada por timer_sleep, e quem bloqueia a thread e a coloca na fila de threads bloqueadas */
 void thread_reacordar(void); /* esta dentro da funcao thread_tick, que e chamada a cada tick por timer.c no seu tratador de interrupcao por tempo. Basicamente, verifica, dentro da lista de threads bloqueadas, se alguma destas threads ja pode ser acordada, ou seja, se o tick atual ja e menor que o tick inicial + tick_extra*/
 
-#endif /* threads/thread.h *///
+void thread_calculo_load_avg(void);
+void thread_calculo_recent_cpu(struct thread *cur);
+void thread_calculo_prioridade(struct thread *cur);
+
+void thread_calculo_todos_recent_cpu(void);
+void thread_calculo_todos_prioridade(void);
+#endif /* threads/thread.h */
