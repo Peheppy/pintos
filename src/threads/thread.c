@@ -521,15 +521,15 @@ thread_calculo_prioridade (struct thread *cur)
 void
 thread_calculo_todos_recent_cpu ()
 {
-  /* chama o calculo de r_c para todas as threads (o 0 nao tem importancia) */
-  thread_foreach(thread_calculo_recent_cpu, 0);
+  /* chama o calculo de r_c para todas as threads */
+  thread_foreach((thread_action_func*)thread_calculo_recent_cpu, NULL);
 }
 
 void
 thread_calculo_todos_prioridade ()
 {
-  /* chama o calculo de r_c para todas as threads (o 0 nao tem importancia) */
-  thread_foreach(thread_calculo_prioridade,0);
+  /* chama o calculo de r_c para todas as threads */
+  thread_foreach((thread_action_func*)thread_calculo_prioridade, NULL);
   /* depois de ajustar a prioridade de todas as threads, as coloca conforme na lista de ready*/
   list_sort(&ready_list, maior_prioridade, NULL);
 }
