@@ -41,6 +41,9 @@
 
    - up or "V": increment the value (and wake up one waiting
      thread, if any). */
+
+static bool maior_prioridade_sema(const struct list_elem *e_1, const struct list_elem *e_2, void *aux UNUSED);
+
 void
 sema_init (struct semaphore *sema, unsigned value) 
 {
@@ -113,10 +116,22 @@ sema_up (struct semaphore *sema)
   ASSERT (sema != NULL);
 
   old_level = intr_disable ();
+
+  struct thread* thread_a_acordar = NULL;
+
   if (!list_empty (&sema->waiters)) 
-    thread_unblock (list_entry (list_pop_front (&sema->waiters),
-                                struct thread, elem));
+  {
+    /* no mlfqs a prioridade alterase com o tempo, entao temos que verificar quem devemos acordar do semafaro pela prioridade */
+    list_sort(&sema->waiters, maior_prioridade_sema, NULL);
+    thread_a_acordar = list_entry (list_pop_front (&sema->waiters), struct thread, elem);                        
+    thread_unblock (thread_a_acordar);      
+  }
   sema->value++;
+  
+  /* primeiro confere se havia alguma thread no semafaro e depois confere se sua prioridade nao e mais a maior */
+  if(thread_a_acordar != NULL && thread_a_acordar->priority > thread_current()->priority)
+    thread_yield();  
+
   intr_set_level (old_level);
 }
 
@@ -335,4 +350,12 @@ cond_broadcast (struct condition *cond, struct lock *lock)
 
   while (!list_empty (&cond->waiters))
     cond_signal (cond, lock);
+}
+
+static bool
+maior_prioridade_sema(const struct list_elem *e_1, const struct list_elem *e_2, void *aux UNUSED)
+{
+  const int sema_p_1 = (list_entry(e_1, struct thread, elem))->priority;
+  const int sema_p_2 = (list_entry(e_2, struct thread, elem))->priority;
+  return sema_p_1 > sema_p_2;
 }
